@@ -3,8 +3,15 @@
 
 import { defineConfig } from '#q-app/wrappers';
 import { fileURLToPath } from 'node:url';
+import type { UserConfig } from 'vite';
 
-export default defineConfig((ctx) => {
+interface QuasarContext {
+  modeName: string;
+  dev: boolean;
+  prod: boolean;
+}
+
+export default defineConfig((ctx: QuasarContext) => {
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -61,6 +68,12 @@ export default defineConfig((ctx) => {
       // distDir
 
       // extendViteConf (viteConf) {},
+      extendViteConf(viteConf: UserConfig) {
+        viteConf.resolve = viteConf.resolve || {};
+        viteConf.resolve.alias = viteConf.resolve.alias || {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (viteConf.resolve.alias as any)['@'] = '/src';
+      },
       // viteVuePluginOptions: {},
 
       vitePlugins: [

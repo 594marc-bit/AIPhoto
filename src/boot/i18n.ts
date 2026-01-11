@@ -21,7 +21,13 @@ declare module 'vue-i18n' {
 }
 /* eslint-enable @typescript-eslint/no-empty-object-type */
 
-export default defineBoot(({ app }) => {
+interface BootContext {
+  app: {
+    use: (plugin: unknown) => void;
+  };
+}
+
+export default defineBoot(({ app }: BootContext) => {
   const i18n = createI18n<{ message: MessageSchema }, MessageLanguages>({
     locale: 'en-US',
     legacy: false,

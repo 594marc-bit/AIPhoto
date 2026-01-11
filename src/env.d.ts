@@ -5,3 +5,15 @@ declare namespace NodeJS {
     VUE_ROUTER_BASE: string | undefined;
   }
 }
+
+// Declare Quasar app-vite module types
+declare module '#q-app/wrappers' {
+  export function defineConfig(callback: any): any;
+  export function defineBoot(callback: any): any;
+  export function defineRouter(callback: any): any;
+  export function defineStore(callback: any): any;
+}
+
+declare module '#q-app' {
+  export * from '#q-app/wrappers';
+}
