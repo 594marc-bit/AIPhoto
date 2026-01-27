@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vue-tsc:*)",
+      "Bash(dir:*)",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(npm run dev)",
+      "Bash(timeout:*)",
+      "Bash(where:*)",
+      "Bash(findstr /i \"\\\\.ts$ \\\\.vue$\")",
+      "Bash(python -c \"from api.auth import get_password_hash; print\\(get_password_hash\\(''test''\\)\\)\")",
+      "Bash(python:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run lint)",
+      "Bash(npx eslint:*)",
+      "Bash(node:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx:*)",
+      "Bash(set:*)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.vue\" -Path .)",
+      "Bash(Select-Object:*)",
+      "Bash(ForEach-Object { $_FullName })",
+      "Bash(C:Program Filesnodejsnpx.exe eslint -c ./eslint.config.js \"./src*/**/*.{ts,js,cjs,mjs,vue}\")",
+      "Bash(export:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(git restore:*)",
+      "Bash(npm install:*)",
+      "Bash(npm --version)",
+      "Bash(\"C:\\\\Users\\\\Marc\\\\AppData\\\\Roaming\\\\npm\\\\quasar.cmd\" dev)",
+      "Bash(./node_modules/.bin/quasar.cmd:*)",
+      "Bash(/c/Program Files/nodejs/node.exe:*)",
+      "Bash(copy:*)"
+    ]
+  }
+}
