@@ -106,4 +106,5 @@ export interface ProcessOptions {
   outputHeight?: number
   maintainAspectRatio: boolean
   quality: number
+  isPreview?: boolean // Enable preview mode with downsampling for performance
 }

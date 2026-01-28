@@ -113,6 +113,7 @@ import SettingsPanel from '@/components/SettingsPanel.vue';
 import BatchProgress from '@/components/BatchProgress.vue';
 import { useImageProcessor } from '@/composables/useImageProcessor';
 import { useBatchProcessor } from '@/composables/useBatchProcessor';
+import { useDebouncePreview } from '@/composables/useDebouncePreview';
 import { useImageStore } from '@/stores/imageStore';
 import { useUserStore } from '@/stores/userStore';
 import type { BorderStyle, LogoConfig, ImageFile, ProcessOptions, ImageCustomSettings } from '@/types/image';
@@ -288,37 +289,6 @@ const showBatchProgress = ref(false);
 const processingCurrent = ref(0);
 const processingTotal = ref(0);
 
-// Watch for selected image changes and settings changes to update preview
-watch(
-  () => [
-    selectedImage.value,
-    effectiveBorderStyle.value,
-    effectiveExifFields.value,
-    effectiveShowExif.value,
-    effectiveExifTextAlign.value,
-    effectiveExifTextOffset.value,
-    effectiveExifTextOffsetX.value,
-    effectiveExifTextOffsetY.value,
-    effectiveExifFont.value,
-    effectiveExifFontSize.value,
-    effectiveExifColor.value,
-    outputWidth.value,
-    outputHeight.value,
-    maintainAspectRatio.value,
-    quality.value,
-    effectiveLogoConfig.value,
-    presetLogoConfig.value,
-    customLogoConfig.value,
-  ],
-  () => {
-    // Use nextTick to ensure component is ready
-    void nextTick(() => {
-      void refreshPreview();
-    });
-  },
-  { deep: true, flush: 'post' },
-);
-
 // Helper function to get process options for a specific image
 const getOptionsForImage = (image: ImageFile): ProcessOptions => {
   // Get effective settings for this image
@@ -398,6 +368,38 @@ const refreshPreview = async () => {
   const options = getOptionsForImage(selectedImage.value);
   await previewRef.value.updatePreview(selectedImage.value, options);
 };
+
+// Set up debounce for preview refresh (150ms delay to balance responsiveness and performance)
+const { debouncedRefresh } = useDebouncePreview(refreshPreview, 150);
+
+// Watch for selected image changes and settings changes to update preview
+watch(
+  () => [
+    selectedImage.value,
+    effectiveBorderStyle.value,
+    effectiveExifFields.value,
+    effectiveShowExif.value,
+    effectiveExifTextAlign.value,
+    effectiveExifTextOffset.value,
+    effectiveExifTextOffsetX.value,
+    effectiveExifTextOffsetY.value,
+    effectiveExifFont.value,
+    effectiveExifFontSize.value,
+    effectiveExifColor.value,
+    outputWidth.value,
+    outputHeight.value,
+    maintainAspectRatio.value,
+    quality.value,
+    effectiveLogoConfig.value,
+    presetLogoConfig.value,
+    customLogoConfig.value,
+  ],
+  () => {
+    // Use debounced refresh to reduce unnecessary renders when user rapidly adjusts settings
+    debouncedRefresh();
+  },
+  { deep: true, flush: 'post' },
+);
 
 
 const handlePresetLogoChange = (config: LogoConfig | undefined) => {

@@ -91,3 +91,4 @@ venv.bak/
 frontend/.env.development
 frontend/.env.production
 process.md
+frontend/src/layouts/MainLayout.vue

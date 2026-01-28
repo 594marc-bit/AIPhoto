@@ -15,6 +15,11 @@ export interface RenderOptions extends ProcessOptions {
 export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  // Image cache to avoid reloading the same image
+  private imageCache: Map<string, HTMLImageElement> = new Map();
+  private maxCacheSize = 10;
+  // Maximum dimension for preview images (downsampling for performance)
+  private PREVIEW_MAX_DIMENSION = 1280;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -26,15 +31,54 @@ export class CanvasRenderer {
   }
 
   /**
+   * Generate cache key from file properties
+   */
+  private getCacheKey(file: File): string {
+    return `${file.name}_${file.size}_${file.lastModified}`;
+  }
+
+  /**
+   * Get cached image if available
+   */
+  private getCachedImage(key: string): HTMLImageElement | undefined {
+    return this.imageCache.get(key);
+  }
+
+  /**
+   * Cache an image with LRU eviction
+   */
+  private cacheImage(key: string, img: HTMLImageElement): void {
+    // Evict oldest entry if cache is full
+    if (this.imageCache.size >= this.maxCacheSize) {
+      const firstKey = this.imageCache.keys().next().value;
+      if (firstKey) {
+        this.imageCache.delete(firstKey);
+      }
+    }
+    this.imageCache.set(key, img);
+  }
+
+  /**
    * Load an image from a File object
+   * Uses cache to avoid reloading the same image
    */
   async loadImage(file: File): Promise<HTMLImageElement> {
+    const key = this.getCacheKey(file);
+    const cached = this.getCachedImage(key);
+
+    if (cached) {
+      console.log('[CanvasRenderer] Using cached image:', key);
+      return cached;
+    }
+
     return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
 
       img.onload = () => {
         URL.revokeObjectURL(url);
+        // Cache the loaded image
+        this.cacheImage(key, img);
         resolve(img);
       };
 
@@ -64,6 +108,36 @@ export class CanvasRenderer {
 
       img.src = url;
     });
+  }
+
+  /**
+   * Create a downsampled preview image for better performance
+   * Only used in preview mode, not for final export
+   */
+  private async createPreviewImage(
+    img: HTMLImageElement,
+    maxDim: number,
+  ): Promise<HTMLImageElement> {
+    const scale = this.PREVIEW_MAX_DIMENSION / maxDim;
+    const newWidth = Math.round(img.naturalWidth * scale);
+    const newHeight = Math.round(img.naturalHeight * scale);
+
+    console.log(`[CanvasRenderer] Creating preview image: ${img.naturalWidth}x${img.naturalHeight} -> ${newWidth}x${newHeight}`);
+
+    // Create temporary canvas for downscaling
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = newWidth;
+    tempCanvas.height = newHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) {
+      throw new Error('Failed to get 2D context from temporary canvas');
+    }
+
+    // Draw scaled image
+    tempCtx.drawImage(img, 0, 0, newWidth, newHeight);
+
+    // Convert back to image
+    return this.loadImageFromUrl(tempCanvas.toDataURL('image/jpeg', 0.85));
   }
 
   /**
@@ -288,11 +362,21 @@ export class CanvasRenderer {
     console.log('[CanvasRenderer.render] exifFields:', exifFields);
     console.log('[CanvasRenderer.render] imageFile.exif:', imageFile.exif);
     console.log('[CanvasRenderer.render] borderStyle:', borderStyle);
+    console.log('[CanvasRenderer.render] isPreview:', options.isPreview);
 
     // Load the image
-    const img = await this.loadImage(imageFile.file);
+    let img = await this.loadImage(imageFile.file);
     const originalWidth = img.naturalWidth;
     const originalHeight = img.naturalHeight;
+
+    // Apply downsampling for preview mode to improve performance
+    if (options.isPreview) {
+      const maxDim = Math.max(originalWidth, originalHeight);
+      if (maxDim > this.PREVIEW_MAX_DIMENSION) {
+        console.log(`[CanvasRenderer.render] Image size ${maxDim}px exceeds preview limit ${this.PREVIEW_MAX_DIMENSION}px, applying downsampling`);
+        img = await this.createPreviewImage(img, maxDim);
+      }
+    }
 
     // Calculate font size as percentage of image width
     const calculatedFontSize = Math.round(originalWidth * (exifFontSize / 100));
@@ -323,15 +407,18 @@ export class CanvasRenderer {
       this.fillBackground(borderStyle.backgroundColor || '#ffffff');
     }
 
-    // Draw the image
+    // Calculate image position
     const imageX = leftWidth;
     const imageY = topWidth;
-    this.drawImage(img, imageX, imageY, imageWidth, imageHeight);
 
-    // Draw shadow at the bottom edge of the image if enabled
+    // Draw shadow before the image if enabled (so shadow appears behind the image)
     if (borderStyle.shadow) {
+      console.log('[CanvasRenderer.render] Drawing shadow');
       this.drawImageShadow(imageX, imageY, imageWidth, imageHeight);
     }
+
+    // Draw the image
+    this.drawImage(img, imageX, imageY, imageWidth, imageHeight);
 
     // Draw EXIF information if enabled
     if (borderStyle.showExif && exifFields.length > 0 && imageFile.exif) {
@@ -442,7 +529,8 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw shadow at the bottom edge of the image with slanted effect
+   * Draw shadow around the image with drop shadow effect
+   * Creates a natural four-sided shadow like a photograph on a surface
    */
   private drawImageShadow(
     imageX: number,
@@ -450,67 +538,47 @@ export class CanvasRenderer {
     imageWidth: number,
     imageHeight: number,
   ): void {
-    const shadowHeight = Math.max(15, imageHeight * 0.04); // 4% of image height, min 15px
-    const shadowY = imageY + imageHeight; // Bottom edge of the image
-    const shadowOpacity = 0.35;
-    const slantOffset = imageWidth * 0.05; // Shadow extends 5% to the right at bottom
-    const cornerRadius = Math.min(8, shadowHeight * 0.5); // Rounded corners
+    // Shadow parameters - dynamically adjusted based on image size
+    const baseOffset = Math.max(5, Math.min(imageWidth, imageHeight) * 0.01);
+    const maxBlur = Math.max(40, Math.min(imageWidth, imageHeight) * 0.1);
+    // Corner radius for rounded corners on left and right sides
+    const cornerRadius = Math.max(8, Math.min(imageWidth, imageHeight) * 0.01);
 
-    // Save context state
     this.ctx.save();
 
-    // Create path for slanted shadow with rounded corners
-    this.ctx.beginPath();
-    // Start at top-left of shadow area with inset
-    const leftInset = slantOffset * 0.3; // Left side also slants slightly
-    this.ctx.moveTo(imageX + leftInset, shadowY);
+    // Method: Draw multiple layers with increasing offset, blur, and varying opacity
+    // Inner layers are closer to the image, outer layers extend further away
+    const layers = 10;
 
-    // Top-right corner (rounded, no extension at top)
-    const topRightX = imageX + imageWidth;
-    this.ctx.quadraticCurveTo(
-      topRightX + cornerRadius * 0.5, shadowY,
-      topRightX, shadowY + cornerRadius
-    );
+    for (let i = 0; i < layers; i++) {
+      const progress = i / (layers - 1); // 0 to 1
+      // Offset increases with each layer (shadow extends further outward)
+      const layerOffset = baseOffset + progress * baseOffset;
+      // Blur increases with each layer
+      const blur = 3 + progress * maxBlur;
+      // Opacity decreases with each layer (inner is darker, outer is lighter)
+      const opacity = 0.08 * (1 - progress * 0.6);
 
-    // Right edge to bottom-right corner
-    const bottomRightX = imageX + imageWidth + slantOffset;
-    this.ctx.lineTo(bottomRightX, shadowY + shadowHeight - cornerRadius);
+      this.ctx.beginPath();
+      // Use roundRect for rounded corners on all sides
+      // Format: roundRect(x, y, width, height, radii)
+      // We can specify different radii for each corner: [topLeft, topRight, bottomRight, bottomLeft]
+      this.ctx.roundRect(
+        imageX + layerOffset,
+        imageY + layerOffset,
+        imageWidth,
+        imageHeight,
+        [cornerRadius, cornerRadius, cornerRadius, cornerRadius]
+      );
 
-    // Bottom-right corner (rounded)
-    this.ctx.quadraticCurveTo(
-      bottomRightX + cornerRadius * 0.3, shadowY + shadowHeight,
-      bottomRightX - cornerRadius, shadowY + shadowHeight
-    );
+      this.ctx.shadowColor = `rgba(0, 0, 0, ${opacity})`;
+      this.ctx.shadowBlur = blur;
+      this.ctx.shadowOffsetX = 0;
+      this.ctx.shadowOffsetY = 0;
+      this.ctx.fillStyle = `rgba(0, 0, 0, ${opacity * 0.5})`;
+      this.ctx.fill();
+    }
 
-    // Bottom edge to bottom-left corner
-    this.ctx.lineTo(imageX + leftInset + cornerRadius, shadowY + shadowHeight);
-
-    // Bottom-left corner (rounded)
-    this.ctx.quadraticCurveTo(
-      imageX + leftInset, shadowY + shadowHeight,
-      imageX + leftInset, shadowY + shadowHeight - cornerRadius
-    );
-
-    // Left edge back to top
-    this.ctx.closePath();
-
-    // Create gradient for shadow effect (darker at top, fading to transparent at bottom)
-    const gradient = this.ctx.createLinearGradient(0, shadowY, 0, shadowY + shadowHeight);
-    gradient.addColorStop(0, `rgba(0, 0, 0, ${shadowOpacity})`);
-    gradient.addColorStop(0.7, `rgba(0, 0, 0, ${shadowOpacity * 0.3})`);
-    gradient.addColorStop(1, `rgba(0, 0, 0, 0)`);
-
-    // Apply shadow with blur for softer edges
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
-    this.ctx.shadowBlur = 6;
-    this.ctx.shadowOffsetX = 2;
-    this.ctx.shadowOffsetY = 1;
-
-    // Fill the shadow shape
-    this.ctx.fillStyle = gradient;
-    this.ctx.fill();
-
-    // Restore context state
     this.ctx.restore();
   }
 
@@ -717,6 +785,14 @@ export class CanvasRenderer {
    * Clean up resources
    */
   destroy(): void {
-    // Canvas will be garbage collected
+    // Clear image cache
+    this.imageCache.clear();
+
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Reset canvas dimensions to free memory
+    this.canvas.width = 0;
+    this.canvas.height = 0;
   }
 }

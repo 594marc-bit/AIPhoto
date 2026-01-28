@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import { CanvasRenderer } from '@/utils/canvasRenderer';
 import type { ImageFile, ProcessOptions } from '@/types/image';
 
@@ -21,10 +21,12 @@ export function useImagePreview() {
 
     try {
       // Always use Canvas for preview (HDR images will be processed via backend during export)
+      // Enable preview mode for downsampling to improve performance
       console.log('[useImagePreview] Using Canvas for preview');
       const result = await renderer.render({
         imageFile,
         ...options,
+        isPreview: true,
       });
 
       // Update preview image with new dimensions
@@ -76,6 +78,11 @@ export function useImagePreview() {
     link.download = filename;
     link.click();
   };
+
+  // Clean up renderer on unmount
+  onUnmounted(() => {
+    renderer.destroy();
+  });
 
   return {
     previewImage,

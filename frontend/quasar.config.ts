@@ -120,6 +120,7 @@ export default defineConfig((ctx: QuasarContext) => {
     devServer: {
       // https: true,
       open: true, // opens browser window automatically
+      port: 8080, // Use port 8080 instead of default 9000
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework

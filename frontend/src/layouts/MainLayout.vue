@@ -31,6 +31,38 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <!-- Footer with ICP filing information -->
+    <q-footer class="bg-white text-black">
+      <q-toolbar class="flex flex-center" style="min-height: 60px;">
+        <div class="text-center q-gutter-sm">
+          <div class="text-caption text-grey-7">
+            20260129V1.1
+          </div>
+          <div class="text-caption">
+            <a
+              href="https://beian.miit.gov.cn/"
+              target="_blank"
+              class="text-grey-8"
+              style="text-decoration: none;"
+            >
+              沪ICP备2025143813号
+            </a>
+          </div>
+          <div class="text-caption">
+            <a
+              href="https://beian.mps.gov.cn/#/query/webSearch?code=31010402335782"
+              target="_blank"
+              rel="noreferrer"
+              class="text-grey-8"
+              style="text-decoration: none;"
+            >
+              沪公网安备31010402335782号
+            </a>
+          </div>
+        </div>
+      </q-toolbar>
+    </q-footer>
   </q-layout>
 </template>
 
